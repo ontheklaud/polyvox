@@ -1,3 +1,30 @@
+# *****************************************************************************
+#  Copyright (c) 2018, 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions are met:
+#      * Redistributions of source code must retain the above copyright
+#        notice, this list of conditions and the following disclaimer.
+#      * Redistributions in binary form must reproduce the above copyright
+#        notice, this list of conditions and the following disclaimer in the
+#        documentation and/or other materials provided with the distribution.
+#      * Neither the name of the NVIDIA CORPORATION nor the
+#        names of its contributors may be used to endorse or promote products
+#        derived from this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+#  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#  DISCLAIMED. IN NO EVENT SHALL NVIDIA CORPORATION BE LIABLE FOR ANY
+#  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+#  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+#  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+#  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+#  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# *****************************************************************************
+
 import logging
 from io import BytesIO
 import os
@@ -110,39 +137,55 @@ def nvidia_tts_utils_for_xpu():
     return Processing()
 
 
-def main():
+# inspired from,
+# - https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/tacotron2/entrypoints.py#L74
+# - https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/waveglow/entrypoints.py#L76
+def load_nv_hub_models_pt_explicit(path_model, model_obj, mode: str = "train", final_map_device: str = "cpu"):
 
     #checkpoint_tacotron2_fp16 = 'https://api.ngc.nvidia.com/v2/models/nvidia/tacotron2_pyt_ckpt_amp/versions/19.09.0/files/nvidia_tacotron2pyt_fp16_20190427'
     #checkpoint_tacotron2_fp32 = 'https://api.ngc.nvidia.com/v2/models/nvidia/tacotron2_pyt_ckpt_fp32/versions/19.09.0/files/nvidia_tacotron2pyt_fp32_20190427'
     #ckpt_file_tacotron2_fp16 = _download_checkpoint(checkpoint_tacotron2_fp16, True)
     #ckpt_file_tacotron2_fp32 = _download_checkpoint(checkpoint_tacotron2_fp32, True)
 
-    tacotron2_ckpt = torch.load("assets/nvidia_tacotron2pyt_fp32_20190427", map_location=torch.device('cpu'))
-    tacotron2_state_dict = tacotron2_ckpt['state_dict']
-    if checkpoint_from_distributed(tacotron2_state_dict):
-        tacotron2_state_dict = unwrap_distributed(tacotron2_state_dict)
-    tacotron2_config = tacotron2_ckpt['config']
+    # checkpoint_waveglow_fp16 = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_amp/versions/19.09.0/files/nvidia_waveglowpyt_fp16_20190427'
+    # checkpoint_waveglow_fp32 = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_fp32/versions/19.09.0/files/nvidia_waveglowpyt_fp32_20190427'
+    # ckpt_file_waveglow_fp16 = _download_checkpoint(checkpoint_waveglow_fp16, True, "assets")
+    # ckpt_file_waveglow_fp32 = _download_checkpoint(checkpoint_waveglow_fp32, True, "assets")
 
-    tacotron2_m = tacotron2.Tacotron2(**tacotron2_config)
-    tacotron2_m.load_state_dict(tacotron2_state_dict)
-    tacotron2_m.eval()
-    tacotron2_m.to(torch.device('xpu'))
+    target_model_ckpt = torch.load(path_model, map_location=torch.device("cpu"))
+    target_model_state_dict = target_model_ckpt["state_dict"]
 
-    #checkpoint_waveglow_fp16 = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_amp/versions/19.09.0/files/nvidia_waveglowpyt_fp16_20190427'
-    #checkpoint_waveglow_fp32 = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_fp32/versions/19.09.0/files/nvidia_waveglowpyt_fp32_20190427'
-    #ckpt_file_waveglow_fp16 = _download_checkpoint(checkpoint_waveglow_fp16, True, "assets")
-    #ckpt_file_waveglow_fp32 = _download_checkpoint(checkpoint_waveglow_fp32, True, "assets")
+    if checkpoint_from_distributed(target_model_state_dict):
+        target_model_state_dict = unwrap_distributed(target_model_state_dict)
+    else:
+        pass
 
-    waveglow_ckpt = torch.load("assets/nvidia_waveglowpyt_fp32_20190427", map_location=torch.device('cpu'))
-    waveglow_state_dict = waveglow_ckpt['state_dict']
-    if checkpoint_from_distributed(waveglow_state_dict):
-        waveglow_state_dict = unwrap_distributed(waveglow_state_dict)
-    waveglow_config = waveglow_ckpt['config']
+    target_model_config = target_model_ckpt["config"]
 
-    waveglow_m = waveglow.WaveGlow(**waveglow_config)
-    waveglow_m.load_state_dict(waveglow_state_dict)
-    waveglow_m.eval()
-    waveglow_m.to(torch.device('xpu'))
+    target_model = model_obj(**target_model_config)
+    target_model.load_state_dict(target_model_state_dict)
+
+    if mode == "ignore":
+        pass
+    elif mode == "train":
+        target_model.train()
+    else:
+        target_model.eval()
+
+    target_model.to(torch.device(final_map_device))
+
+    return target_model
+
+
+def main():
+
+    tacotron2_m = load_nv_hub_models_pt_explicit(
+        "assets/nvidia_tacotron2pyt_fp32_20190427", tacotron2.Tacotron2, mode="eval", final_map_device="xpu"
+    )
+
+    waveglow_m = load_nv_hub_models_pt_explicit(
+        "assets/nvidia_waveglowpyt_fp32_20190427", waveglow.WaveGlow, mode="eval", final_map_device="xpu"
+    )
 
     # text utils
     utils = nvidia_tts_utils_for_xpu()
