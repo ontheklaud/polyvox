@@ -30,6 +30,7 @@ from io import BytesIO
 import os
 import sys
 import urllib.request
+from typing import Callable
 
 import torch
 import intel_extension_for_pytorch as ipex
@@ -140,7 +141,8 @@ def nvidia_tts_utils_for_xpu():
 # inspired from,
 # - https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/tacotron2/entrypoints.py#L74
 # - https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/waveglow/entrypoints.py#L76
-def load_nv_hub_models_pt_explicit(path_model, model_obj, mode: str = "train", final_map_device: str = "cpu"):
+def load_nv_hub_models_pt_explicit(path_model, model_obj, aux_configs: dict = None, aux_state_dict_fix: Callable = None,
+                                   mismatch_relax: bool = False, mode: str = "train", final_map_device: str = "cpu"):
 
     #checkpoint_tacotron2_fp16 = 'https://api.ngc.nvidia.com/v2/models/nvidia/tacotron2_pyt_ckpt_amp/versions/19.09.0/files/nvidia_tacotron2pyt_fp16_20190427'
     #checkpoint_tacotron2_fp32 = 'https://api.ngc.nvidia.com/v2/models/nvidia/tacotron2_pyt_ckpt_fp32/versions/19.09.0/files/nvidia_tacotron2pyt_fp32_20190427'
@@ -153,17 +155,25 @@ def load_nv_hub_models_pt_explicit(path_model, model_obj, mode: str = "train", f
     # ckpt_file_waveglow_fp32 = _download_checkpoint(checkpoint_waveglow_fp32, True, "assets")
 
     target_model_ckpt = torch.load(path_model, map_location=torch.device("cpu"))
-    target_model_state_dict = target_model_ckpt["state_dict"]
+    target_model_state_dict: dict = target_model_ckpt["state_dict"]
 
     if checkpoint_from_distributed(target_model_state_dict):
         target_model_state_dict = unwrap_distributed(target_model_state_dict)
     else:
         pass
 
-    target_model_config = target_model_ckpt["config"]
+    target_model_config: dict = target_model_ckpt["config"]
+    if aux_configs is not None:
+        target_model_config.update(aux_configs)
+    else:
+        pass
+
+    if aux_state_dict_fix is not None:
+        target_model_state_dict = \
+            aux_state_dict_fix(target_model_state_dict, target_model_config["speakers_embedding_dim"])
 
     target_model = model_obj(**target_model_config)
-    target_model.load_state_dict(target_model_state_dict)
+    target_model.load_state_dict(target_model_state_dict, strict=not mismatch_relax)
 
     if mode == "ignore":
         pass
