@@ -37,8 +37,8 @@ import intel_extension_for_pytorch as ipex
 import scipy.io.wavfile as wavfile
 import numpy as np
 
-from DeepLearningExamples.PyTorch.SpeechSynthesis.Tacotron2.tacotron2 import model as tacotron2
-from DeepLearningExamples.PyTorch.SpeechSynthesis.Tacotron2.waveglow import model as waveglow
+from libs.nvstock.torch.SpeechSynthesis.Tacotron2.tacotron2 import model as tacotron2
+from libs.nvstock.torch.SpeechSynthesis.Tacotron2.waveglow import model as waveglow
 
 import streamlit as st
 
@@ -96,7 +96,7 @@ def unwrap_distributed(state_dict):
 def nvidia_tts_utils_for_xpu():
     class Processing:
 
-        from DeepLearningExamples.PyTorch.SpeechSynthesis.Tacotron2.tacotron2.text import text_to_sequence
+        from libs.nvstock.torch.SpeechSynthesis.Tacotron2.tacotron2.text import text_to_sequence
 
         @staticmethod
         def pad_sequences(batch):
