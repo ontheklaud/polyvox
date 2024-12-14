@@ -7,12 +7,9 @@ import torch
 import torch.nn.functional as F
 import intel_extension_for_pytorch as ipex
 
-from tacotron2.tacotron2.model import Tacotron2 as Tacotron2MS
-#from tacotron2.waveglow.model import WaveGlow as WaveGlowMS
-from DeepLearningExamples.PyTorch.SpeechSynthesis.Tacotron2.tacotron2.text import text_to_sequence
-from DeepLearningExamples.PyTorch.SpeechSynthesis.Tacotron2.waveglow import model as waveglow
-
-from run_tacotron2 import load_nv_hub_models_pt_explicit, nvidia_tts_utils_for_xpu
+from libs.ide8.tacotron2.tacotron2.model import Tacotron2 as Tacotron2MS
+from libs.nvstock.torch.SpeechSynthesis.Tacotron2.waveglow import model as waveglow
+from run_tacotron2_nvstock import load_nv_hub_models_pt_explicit, nvidia_tts_utils_for_xpu
 
 import streamlit as st
 
@@ -129,7 +126,7 @@ def main():
         if input_text.strip():
             st.success(f"Processing text: '{input_text}'")
 
-            sequences, lengths = utils.prepare_input_sequence([input_text], device='xpu')
+            sequences, lengths = utils.prepare_input_sequence([input_text.strip()], device='xpu')
 
             with torch.no_grad():
 
