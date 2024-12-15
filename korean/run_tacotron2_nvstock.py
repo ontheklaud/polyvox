@@ -170,7 +170,7 @@ def load_nv_hub_models_pt_explicit(path_model, model_obj, aux_configs: dict = No
 
     if aux_state_dict_fix is not None:
         target_model_state_dict = \
-            aux_state_dict_fix(target_model_state_dict, target_model_config["speakers_embedding_dim"])
+            aux_state_dict_fix(target_model_state_dict, target_model_config)
 
     target_model = model_obj(**target_model_config)
     target_model.load_state_dict(target_model_state_dict, strict=not mismatch_relax)
